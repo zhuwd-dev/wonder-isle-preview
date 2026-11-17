@@ -79,7 +79,7 @@ jobs:
               "                    ]})" + chr(10),
               "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
           ]
-          lines[matches[-1]:matches[-1] + 1] = replacement
+          lines[matches[0]:matches[0] + 1] = replacement
           for prefix, action_lines in (
               (
                   'page.mouse.click(int(page.viewport_size["width"] * 0.5 - 104)',
