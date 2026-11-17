@@ -69,8 +69,8 @@ jobs:
               i for i, line in enumerate(lines)
               if line.strip().startswith('page.mouse.click(page.viewport_size["width"] - 54')
           ]
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one mobile R01 interaction click, found {len(matches)}.")
+          if len(matches) != 2:
+              raise SystemExit(f"Expected desktop and mobile R01 interaction clicks, found {len(matches)}.")
           replacement = [
               "                    action_x = page.viewport_size[\"width\"] - 54\\n",
               "                    action_y = page.viewport_size[\"height\"] - 30\\n",
@@ -79,7 +79,7 @@ jobs:
               "                    ]})\\n",
               "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})\\n",
           ]
-          lines[matches[0]:matches[0] + 1] = replacement
+          lines[matches[-1]:matches[-1] + 1] = replacement
           path.write_text("".join(lines), encoding="utf-8")
           PY
 
