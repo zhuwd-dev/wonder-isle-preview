@@ -98,6 +98,9 @@ jobs:
           mkdir -p "$WEB_TEST_ARTIFACTS" build/web
           "$GODOT_BIN" --headless --path . --export-release Web build/web/index.html
           "$PYTHON_BIN" tools/prepare_web_export.py build/web
+          # Keep the preview cache name outside the production cleanup prefix.
+          sed -i 's/wonder-isle-preview-/wonder-preview-isle-/g' build/web/index.service.worker.js
+          grep -F -- 'wonder-preview-isle-' build/web/index.service.worker.js
           if command -v chromium >/dev/null 2>&1; then
             export CHROMIUM_PATH="$(command -v chromium)"
           elif command -v chromium-browser >/dev/null 2>&1; then
@@ -113,7 +116,7 @@ jobs:
           [[ "$(cat build/web/BUILD_COMMIT.txt)" == "$SOURCE_SHA" ]]
           grep -F -- "--build-revision=$SOURCE_SHA" build/web/index.html
           grep -F -- '--save-namespace=preview' build/web/index.html
-          grep -F -- 'wonder-isle-preview-' build/web/index.service.worker.js
+          grep -F -- 'wonder-preview-isle-' build/web/index.service.worker.js
           grep -F -- '"scope": "./"' build/web/index.manifest.json
 
       - name: Upload isolated Pages artifact
