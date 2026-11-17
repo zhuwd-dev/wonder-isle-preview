@@ -166,7 +166,7 @@ def main() -> int:
 
         open_controlled_pwa(PREVIEW_URL)
         preview_cache_names = pwa_page.evaluate("() => caches.keys()")
-        assert any(key.startswith("wonder-isle-preview-") for key in preview_cache_names), preview_cache_names
+        assert any(key.startswith("wonder-preview-isle-") for key in preview_cache_names), preview_cache_names
         open_controlled_pwa(PRODUCTION_URL)
         isolation = pwa_page.evaluate("""async () => {
             const regs = await navigator.serviceWorker.getRegistrations();
@@ -182,10 +182,10 @@ def main() -> int:
         assert "/wonder-isle/" in isolation["scopes"], isolation
         preview_worker = isolation["workers"]["/wonder-isle-preview/index.service.worker.js"]
         production_worker = isolation["workers"]["/wonder-isle/index.service.worker.js"]
-        assert "wonder-isle-preview-" in preview_worker, "preview cache prefix missing"
-        assert "wonder-isle-preview-" not in production_worker, "formal worker shares preview cache prefix"
-        preview_caches = {key for key in isolation["caches"] if key.startswith("wonder-isle-preview-")}
-        production_caches = {key for key in isolation["caches"] if key.startswith("wonder-isle-") and not key.startswith("wonder-isle-preview-")}
+        assert "wonder-preview-isle-" in preview_worker, "preview cache prefix missing"
+        assert "wonder-preview-isle-" not in production_worker, "formal worker shares preview cache prefix"
+        preview_caches = {key for key in isolation["caches"] if key.startswith("wonder-preview-isle-")}
+        production_caches = {key for key in isolation["caches"] if key.startswith("wonder-isle-") and not key.startswith("wonder-preview-isle-")}
         assert preview_caches, isolation["caches"]
         assert production_caches, isolation["caches"]
         assert preview_caches.isdisjoint(production_caches), isolation["caches"]
