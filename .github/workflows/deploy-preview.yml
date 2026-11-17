@@ -97,6 +97,13 @@ jobs:
           mkdir -p "$WEB_TEST_ARTIFACTS" build/web
           "$GODOT_BIN" --headless --path . --export-release Web build/web/index.html
           "$PYTHON_BIN" tools/prepare_web_export.py build/web
+          if command -v chromium >/dev/null 2>&1; then
+            export CHROMIUM_PATH="$(command -v chromium)"
+          elif command -v chromium-browser >/dev/null 2>&1; then
+            export CHROMIUM_PATH="$(command -v chromium-browser)"
+          else
+            "$PYTHON_BIN" -m playwright install chromium
+          fi
           "$PYTHON_BIN" -u tools/run_isolated_tests.py
           "$PYTHON_BIN" tools/test_web_preview.py build/web
           "$PYTHON_BIN" tools/test_mobile_web.py build/web
