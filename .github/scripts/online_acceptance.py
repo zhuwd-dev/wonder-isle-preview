@@ -150,11 +150,24 @@ def main() -> int:
 
         pwa = browser.new_context(viewport={"width": 1280, "height": 720}, service_workers="allow")
         pwa_page = pwa.new_page()
-        for url in (PREVIEW_URL, PRODUCTION_URL):
+
+        def open_controlled_pwa(url: str) -> None:
             result = pwa_page.goto(url, wait_until="load", timeout=60000)
             assert result and result.status == 200, f"PWA page failed: {url}"
             pwa_page.wait_for_selector("canvas", timeout=60000)
+            pwa_page.evaluate("() => navigator.serviceWorker.ready")
+            # A newly installed worker may not control the first navigation.
+            # Reload only after activation so the game payload requests pass
+            # through the worker and create this site's cache namespace.
+            pwa_page.reload(wait_until="load", timeout=60000)
+            pwa_page.wait_for_selector("canvas", timeout=60000)
+            pwa_page.wait_for_function("navigator.serviceWorker.controller !== null", timeout=30000)
             pwa_page.wait_for_timeout(2500)
+
+        open_controlled_pwa(PREVIEW_URL)
+        preview_cache_names = pwa_page.evaluate("() => caches.keys()")
+        assert any(key.startswith("wonder-isle-preview-") for key in preview_cache_names), preview_cache_names
+        open_controlled_pwa(PRODUCTION_URL)
         isolation = pwa_page.evaluate("""async () => {
             const regs = await navigator.serviceWorker.getRegistrations();
             const keys = await caches.keys();
@@ -171,7 +184,11 @@ def main() -> int:
         production_worker = isolation["workers"]["/wonder-isle/index.service.worker.js"]
         assert "wonder-isle-preview-" in preview_worker, "preview cache prefix missing"
         assert "wonder-isle-preview-" not in production_worker, "formal worker shares preview cache prefix"
-        assert any(key.startswith("wonder-isle-preview-") for key in isolation["caches"]), isolation["caches"]
+        preview_caches = {key for key in isolation["caches"] if key.startswith("wonder-isle-preview-")}
+        production_caches = {key for key in isolation["caches"] if key.startswith("wonder-isle-") and not key.startswith("wonder-isle-preview-")}
+        assert preview_caches, isolation["caches"]
+        assert production_caches, isolation["caches"]
+        assert preview_caches.isdisjoint(production_caches), isolation["caches"]
         print("PASS preview and formal Service Worker scopes and Cache Storage namespaces are separate", flush=True)
 
         if errors or failed_requests or bad_responses:
