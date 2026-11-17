@@ -108,7 +108,7 @@ jobs:
           "$PYTHON_BIN" tools/test_web_preview.py build/web
           "$PYTHON_BIN" tools/test_mobile_web.py build/web
           "$PYTHON_BIN" tools/test_save_mirror_cas.py
-          printf '%s\n' "$SOURCE_SHA" > build/web/BUILD_COMMIT.txt
+          printf '%s\\n' "$SOURCE_SHA" > build/web/BUILD_COMMIT.txt
           [[ "$(cat build/web/BUILD_COMMIT.txt)" == "$SOURCE_SHA" ]]
           grep -F -- "--build-revision=$SOURCE_SHA" build/web/index.html
           grep -F -- '--save-namespace=preview' build/web/index.html
@@ -123,7 +123,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
@@ -157,3 +159,41 @@ jobs:
           done
           echo "Pages did not serve expected source commit $expected (last response: $actual)." >&2
           exit 1
+
+      - name: Checkout online acceptance script
+        uses: actions/checkout@v4
+        with:
+          path: preview-repo
+
+      - name: Checkout source test helpers
+        env:
+          SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          git -C source init
+          git -C source remote add origin https://github.com/zhuwd-dev/wonder-isle.git
+          git -C source fetch --depth=1 origin "$SOURCE_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          [[ "$(git -C source rev-parse HEAD)" == "$SOURCE_SHA" ]]
+
+      - name: Install online browser acceptance tools
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Chromium and Playwright
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.62.0
+          python -m playwright install --with-deps chromium
+          echo "CHROMIUM_PATH=$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
+
+      - name: Test actual Pages site and storage isolation
+        env:
+          SOURCE_TOOLS: ${{ github.workspace }}/source/tools
+          WONDER_ISLE_PREVIEW: "1"
+          PREVIEW_URL: ${{ steps.deployment.outputs.page_url }}
+          PRODUCTION_URL: https://zhuwd-dev.github.io/wonder-isle/
+          EXPECTED_SHA: ${{ needs.build.outputs.source_sha }}
+        run: python -u preview-repo/.github/scripts/online_acceptance.py
