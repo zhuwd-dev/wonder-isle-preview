@@ -80,6 +80,30 @@ jobs:
               "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
           ]
           lines[matches[-1]:matches[-1] + 1] = replacement
+          for prefix, action_lines in (
+              (
+                  'page.mouse.click(int(page.viewport_size["width"] * 0.5 - 104)',
+                  [
+                      "                    replay_x = int(page.viewport_size[\"width\"] * 0.5 - 104)" + chr(10),
+                      "                    replay_y = int(page.viewport_size[\"height\"] * 0.63 + 35)" + chr(10),
+                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [{\"x\": replay_x, \"y\": replay_y, \"id\": 4, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}]})" + chr(10),
+                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
+                  ],
+              ),
+              (
+                  'page.mouse.click(page.viewport_size["width"] - 54, 24)',
+                  [
+                      "                    back_x = page.viewport_size[\"width\"] - 54" + chr(10),
+                      "                    back_y = 24" + chr(10),
+                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [{\"x\": back_x, \"y\": back_y, \"id\": 5, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}]})" + chr(10),
+                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
+                  ],
+              ),
+          ):
+              matches = [i for i, line in enumerate(lines) if prefix in line]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one mobile R01 action {prefix!r}, found {len(matches)}.")
+              lines[matches[0]:matches[0] + 1] = action_lines
           path.write_text("".join(lines), encoding="utf-8")
           PY
 
