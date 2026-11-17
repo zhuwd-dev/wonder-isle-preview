@@ -24,6 +24,8 @@ concurrency:
 
 jobs:
   build:
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -92,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$WEB_TEST_ARTIFACTS"
+          mkdir -p "$WEB_TEST_ARTIFACTS" build/web
           "$GODOT_BIN" --headless --path . --export-release Web build/web/index.html
           "$PYTHON_BIN" tools/prepare_web_export.py build/web
           "$PYTHON_BIN" -u tools/run_isolated_tests.py
@@ -135,8 +137,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The expected SHA is also supplied by the build artifact marker.
-          expected='1ac09de449bf7a8a0953f4ca7ef037c837791c2e'
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected="$EXPECTED_SHA"
           marker_url="${PAGE_URL%/}/BUILD_COMMIT.txt?revision=${expected}"
           for attempt in $(seq 1 12); do
             actual="$(curl --fail --silent --show-error --header 'Cache-Control: no-cache' "$marker_url" 2>/dev/null || true)"
