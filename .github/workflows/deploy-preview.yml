@@ -1,0 +1,150 @@
+name: Deploy Development Preview
+
+run-name: Preview source ${{ inputs.source_sha || 'baseline' }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-preview.yml
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full 40-character commit SHA from zhuwd-dev/wonder-isle
+        required: true
+        default: 1ac09de449bf7a8a0953f4ca7ef037c837791c2e
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wonder-isle-preview-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout preview workflow
+        uses: actions/checkout@v4
+
+      - name: Resolve and validate source SHA
+        id: source
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.source_sha || '1ac09de449bf7a8a0953f4ca7ef037c837791c2e' }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'source_sha must be a full 40-character lowercase SHA.' >&2; exit 2; }
+          echo "source_sha=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch exact public game source commit
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          git -C source init
+          git -C source remote add origin https://github.com/zhuwd-dev/wonder-isle.git
+          git -C source fetch --depth=1 origin "$SOURCE_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          actual_sha="$(git -C source rev-parse HEAD)"
+          [[ "$actual_sha" == "$SOURCE_SHA" ]]
+          echo "Building source commit $actual_sha"
+
+      - name: Cache Godot and browser tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/wonder-isle-godot-4.7.2
+            /tmp/wonder-isle-godot-data/godot/export_templates/4.7.2.stable
+            /tmp/wonder-isle-web-test-venv
+            /tmp/wonder-isle-playwright-browsers
+          key: wonder-isle-preview-godot-4.7.2-${{ runner.os }}-${{ hashFiles('source/tools/requirements-web-test.txt') }}
+
+      - name: Install pinned Godot and browser test tools
+        working-directory: source
+        env:
+          GODOT_INSTALL_DIR: /tmp/wonder-isle-godot-4.7.2
+          XDG_DATA_HOME: /tmp/wonder-isle-godot-data
+          XDG_CONFIG_HOME: /tmp/wonder-isle-godot-config
+          XDG_CACHE_HOME: /tmp/wonder-isle-godot-cache
+          WEB_TEST_VENV: /tmp/wonder-isle-web-test-venv
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/wonder-isle-playwright-browsers
+        run: bash tools/setup_web_environment.sh
+
+      - name: Export, validate and prepare Pages site
+        working-directory: source
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          WONDER_ISLE_PREVIEW: "1"
+          WONDER_ISLE_COMMIT: ${{ steps.source.outputs.source_sha }}
+          GODOT_BIN: /tmp/wonder-isle-godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
+          PYTHON_BIN: /tmp/wonder-isle-web-test-venv/bin/python
+          XDG_DATA_HOME: /tmp/wonder-isle-godot-data
+          XDG_CONFIG_HOME: /tmp/wonder-isle-godot-config
+          XDG_CACHE_HOME: /tmp/wonder-isle-godot-cache
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/wonder-isle-playwright-browsers
+          WEB_TEST_ARTIFACTS: /tmp/wonder-isle-preview-artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WEB_TEST_ARTIFACTS"
+          "$GODOT_BIN" --headless --path . --export-release Web build/web/index.html
+          "$PYTHON_BIN" tools/prepare_web_export.py build/web
+          "$PYTHON_BIN" -u tools/run_isolated_tests.py
+          "$PYTHON_BIN" tools/test_web_preview.py build/web
+          "$PYTHON_BIN" tools/test_mobile_web.py build/web
+          "$PYTHON_BIN" tools/test_save_mirror_cas.py
+          printf '%s\n' "$SOURCE_SHA" > build/web/BUILD_COMMIT.txt
+          [[ "$(cat build/web/BUILD_COMMIT.txt)" == "$SOURCE_SHA" ]]
+          grep -F -- "--build-revision=$SOURCE_SHA" build/web/index.html
+          grep -F -- '--save-namespace=preview' build/web/index.html
+          grep -F -- 'wonder-isle-preview-' build/web/index.service.worker.js
+          grep -F -- '"scope": "./"' build/web/index.manifest.json
+
+      - name: Upload isolated Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: source/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Confirm Pages is configured for Actions
+        uses: actions/configure-pages@v5
+
+      - name: Deploy this repository's Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify deployed source revision
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The expected SHA is also supplied by the build artifact marker.
+          expected='1ac09de449bf7a8a0953f4ca7ef037c837791c2e'
+          marker_url="${PAGE_URL%/}/BUILD_COMMIT.txt?revision=${expected}"
+          for attempt in $(seq 1 12); do
+            actual="$(curl --fail --silent --show-error --header 'Cache-Control: no-cache' "$marker_url" 2>/dev/null || true)"
+            if [[ "$actual" == "$expected" ]]; then
+              echo "Pages is serving source commit $actual at $PAGE_URL"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Pages did not serve expected source commit $expected (last response: $actual)." >&2
+          exit 1
