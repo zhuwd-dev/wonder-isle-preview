@@ -64,18 +64,23 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           path = Path("tools/test_web_preview.py")
-          source = path.read_text(encoding="utf-8")
-          old = '                    page.mouse.click(page.viewport_size["width"] - 54, page.viewport_size["height"] - 30)\\n'
-          new = '''                    action_x = page.viewport_size["width"] - 54
-                    action_y = page.viewport_size["height"] - 30
-                    touch.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [
-                        {"x": action_x, "y": action_y, "id": 3, "radiusX": 8, "radiusY": 8, "force": 1}
-                    ]})
-                    touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-          '''
-          if source.count(old) != 1:
-              raise SystemExit("Expected exactly one mobile R01 interaction click in the pinned source test.")
-          path.write_text(source.replace(old, new), encoding="utf-8")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          matches = [
+              i for i, line in enumerate(lines)
+              if line.strip().startswith('page.mouse.click(page.viewport_size["width"] - 54')
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f"Expected one mobile R01 interaction click, found {len(matches)}.")
+          replacement = [
+              "                    action_x = page.viewport_size[\"width\"] - 54\\n",
+              "                    action_y = page.viewport_size[\"height\"] - 30\\n",
+              "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [\\n",
+              "                        {\"x\": action_x, \"y\": action_y, \"id\": 3, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}\\n",
+              "                    ]})\\n",
+              "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})\\n",
+          ]
+          lines[matches[0]:matches[0] + 1] = replacement
+          path.write_text("".join(lines), encoding="utf-8")
           PY
 
       - name: Cache Godot and browser tools
