@@ -12,7 +12,7 @@ on:
       source_sha:
         description: Full source commit expected at the live preview URL
         required: true
-        default: 1ac09de449bf7a8a0953f4ca7ef037c837791c2e
+        default: cb51b035a646cb7ef96a7bb367916be25ae447a1
         type: string
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
         id: source
         shell: bash
         env:
-          REQUESTED_SHA: ${{ inputs.source_sha || '1ac09de449bf7a8a0953f4ca7ef037c837791c2e' }}
+          REQUESTED_SHA: ${{ inputs.source_sha || 'cb51b035a646cb7ef96a7bb367916be25ae447a1' }}
         run: |
           set -euo pipefail
           [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'source_sha must be a full 40-character lowercase SHA.' >&2; exit 2; }
