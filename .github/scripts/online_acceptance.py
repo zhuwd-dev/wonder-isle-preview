@@ -156,10 +156,10 @@ def main() -> int:
         action_size = state["action_size"]
         page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
         state = wait_comp_screen(1)
-        # The result card's replay button is centered in the end-of-race
-        # panel; action_position remains the in-race jump control telemetry.
-        page.mouse.click(round(page.viewport_size["width"] * 0.5 - 104),
-                         round(page.viewport_size["height"] * 0.63 + 35))
+        action = state["action_position"]
+        action_size = state["action_size"]
+        page.wait_for_timeout(150)
+        page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
         state = wait_comp_screen(2)
         assert state.get("clock_running") is True, state
         page.screenshot(path="/tmp/preview-r01-start.png", full_page=True)
@@ -227,9 +227,10 @@ def main() -> int:
         page.screenshot(path="/tmp/preview-r01-finish.png", full_page=True)
         print("PASS live R01 route, jump, ordered checkpoints, finish and timing", flush=True)
 
-        action = state["action_position"]
-        action_size = state["action_size"]
-        page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
+        # The result card's replay button is centered in the end-of-race
+        # panel; action_position remains the in-race jump control telemetry.
+        page.mouse.click(round(page.viewport_size["width"] * 0.5 - 104),
+                         round(page.viewport_size["height"] * 0.63 + 35))
         state = wait_comp_screen(2)
         assert state.get("checkpoint_index") == 0 and state.get("race_time", 1) <= 0.3, state
         back = state["back_position"]
