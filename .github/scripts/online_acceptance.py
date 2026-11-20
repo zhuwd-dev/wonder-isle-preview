@@ -174,6 +174,8 @@ def main() -> int:
             try:
                 while time.monotonic() < deadline:
                     state = nav.competition_position()
+                    if state.get("screen") == 3:
+                        return state
                     current = state[axis]
                     if abs(target - current) <= 18:
                         if jump and state.get("test_peak_jump_height", 0.0) - initial_peak < 18:
