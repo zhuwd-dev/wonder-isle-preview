@@ -117,6 +117,103 @@ def main() -> int:
             verify(lambda data, i=index: data["placed"][i], f"Q001 repair bridge plank {index + 1}/3")
         bridge_save = verify(lambda data: data["bridge_repaired"], "Q001 bridge repaired")
 
+        # Complete R01 on the deployed Pages site with ordinary desktop keys.
+        # Read-only telemetry guides real input; it never moves the player.
+        nav.move_until_ready("a", "去竞技岛")
+        page.screenshot(path="/tmp/preview-r01-entrance.png", full_page=True)
+        page.keyboard.press("e")
+
+        def wait_comp_screen(expected: int, timeout: float = 20) -> dict:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                state = nav.competition_position()
+                if state.get("screen") == expected:
+                    return state
+                page.wait_for_timeout(50)
+            raise AssertionError(f"R01 screen {expected} not reached: {nav.competition_position()}")
+
+        state = wait_comp_screen(0)
+        page.screenshot(path="/tmp/preview-r01-hub.png", full_page=True)
+        page.mouse.click(page.viewport_size["width"] - 54, page.viewport_size["height"] - 30)
+        state = wait_comp_screen(1)
+        action = state["action_position"]
+        action_size = state["action_size"]
+        page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
+        state = wait_comp_screen(2)
+        assert state.get("clock_running") is True, state
+        page.screenshot(path="/tmp/preview-r01-start.png", full_page=True)
+
+        def race_axis(axis: str, target: float, *, jump: bool = False, timeout: float = 30) -> dict:
+            deadline = time.monotonic() + timeout
+            last_position = None
+            last_progress = time.monotonic()
+            last_jump = 0.0
+            initial_peak = nav.competition_position().get("test_peak_jump_height", 0.0)
+            key = ("d" if target > nav.competition_position()["x"] else "a") if axis == "x" else ("s" if target > nav.competition_position()["y"] else "w")
+            page.keyboard.down(key)
+            try:
+                while time.monotonic() < deadline:
+                    state = nav.competition_position()
+                    current = state[axis]
+                    if abs(target - current) <= 18:
+                        if jump and state.get("test_peak_jump_height", 0.0) - initial_peak < 18:
+                            raise AssertionError(f"R01 low barrier jump did not clear: {state}")
+                        return state
+                    position = (state["x"], state["y"])
+                    if last_position is None or abs(position[0] - last_position[0]) + abs(position[1] - last_position[1]) > 1:
+                        last_position = position
+                        last_progress = time.monotonic()
+                    elif time.monotonic() - last_progress > 2:
+                        raise AssertionError(f"R01 keyboard movement blocked toward {axis}={target}: {state}")
+                    if jump and time.monotonic() - last_jump > 0.65:
+                        page.keyboard.press("space")
+                        last_jump = time.monotonic()
+                    page.wait_for_timeout(35)
+            finally:
+                page.keyboard.up(key)
+            raise AssertionError(f"Timed out walking R01 {axis}={target}: {nav.competition_position()}")
+
+        def race_to(x: float, y: float, *, jump: bool = False) -> dict:
+            state = race_axis("x", x, jump=jump)
+            return race_axis("y", y, jump=jump)
+
+        width = state.get("world_width", 1280.0)
+        offset_x = (width - 1280.0) * 0.5
+        for x, y in ((300, 514), (405, 501), (465, 486)):
+            state = race_to(offset_x + x, y)
+        state = race_to(offset_x + 525, 452, jump=True)
+        for x, y in ((540, 436), (545, 400), (500, 364), (405, 338),
+                     (305, 309), (270, 275), (280, 243), (345, 209)):
+            state = race_to(offset_x + x, y)
+        assert state.get("checkpoint_index", 0) >= 1, f"R01 first ordered checkpoint missing: {state}"
+        for x, y in ((445, 182), (560, 168), (650, 177), (715, 204),
+                     (735, 234), (755, 258), (770, 289), (790, 334),
+                     (910, 344), (1010, 333), (1073, 307), (1090, 274),
+                     (1072, 239), (1030, 204), (1004, 172), (1015, 148),
+                     (1050, 124), (1068, 111), (1100, 84)):
+            state = race_to(offset_x + x, y)
+        assert state.get("checkpoint_index") == 2, f"R01 ordered checkpoints incomplete: {state}"
+        state = wait_comp_screen(3)
+        assert state.get("clock_running") is False and state.get("race_time", 0) > 0, state
+        page.screenshot(path="/tmp/preview-r01-finish.png", full_page=True)
+        print("PASS live R01 route, jump, ordered checkpoints, finish and timing", flush=True)
+
+        action = state["action_position"]
+        action_size = state["action_size"]
+        page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
+        state = wait_comp_screen(2)
+        assert state.get("checkpoint_index") == 0 and state.get("race_time", 1) <= 0.3, state
+        back = state["back_position"]
+        back_size = state["back_size"]
+        page.mouse.click(round(back[0] + back_size[0] / 2), round(back[1] + back_size[1] / 2))
+        wait_comp_screen(0)
+        back = nav.competition_position()["back_position"]
+        back_size = nav.competition_position()["back_size"]
+        page.mouse.click(round(back[0] + back_size[0] / 2), round(back[1] + back_size[1] / 2))
+        restored_life = nav.position()
+        assert restored_life.get("test_save_data", {}).get("bridge_repaired") is True, restored_life
+        print("PASS live R01 replay, return to life island and preserve Q001 state", flush=True)
+
         page.set_viewport_size({"width": 844, "height": 390})
         page.wait_for_timeout(300)
         bounds = canvas.bounding_box()
