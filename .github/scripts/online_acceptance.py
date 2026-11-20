@@ -186,7 +186,7 @@ def main() -> int:
                     elif time.monotonic() - last_progress > 2:
                         raise AssertionError(f"R01 keyboard movement blocked toward {axis}={target}: {state}")
                     if jump and time.monotonic() - last_jump > 0.65:
-                        page.keyboard.press("space")
+                        page.keyboard.press("Space")
                         last_jump = time.monotonic()
                     page.wait_for_timeout(35)
             finally:
