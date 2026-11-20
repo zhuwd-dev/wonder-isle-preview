@@ -13,7 +13,7 @@ on:
       source_sha:
         description: Full 40-character commit SHA from zhuwd-dev/wonder-isle
         required: true
-        default: 9ff7536f203205e8e715d417fe6347d215a827c5
+        default: 40031a1930f16fe6a5bc9bc799d16496cb3a392e
         type: string
 
 permissions:
@@ -37,7 +37,7 @@ jobs:
         id: source
         shell: bash
         env:
-          REQUESTED_SHA: ${{ inputs.source_sha || '9ff7536f203205e8e715d417fe6347d215a827c5' }}
+          REQUESTED_SHA: ${{ inputs.source_sha || '40031a1930f16fe6a5bc9bc799d16496cb3a392e' }}
         run: |
           set -euo pipefail
           [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'source_sha must be a full 40-character lowercase SHA.' >&2; exit 2; }
