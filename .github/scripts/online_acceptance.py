@@ -139,7 +139,22 @@ def main() -> int:
 
         state = wait_comp_screen(0)
         page.screenshot(path="/tmp/preview-r01-hub.png", full_page=True)
-        page.mouse.click(page.viewport_size["width"] - 54, page.viewport_size["height"] - 30)
+        # Walk from the life-island exit to the marked R01 entry inside the hub.
+        # This is ordinary keyboard movement, not a player-coordinate edit.
+        hub_deadline = time.monotonic() + 20
+        page.keyboard.down("w")
+        try:
+            while time.monotonic() < hub_deadline:
+                state = nav.competition_position()
+                if state.get("nearest_entry") == "single":
+                    break
+                page.wait_for_timeout(40)
+        finally:
+            page.keyboard.up("w")
+        assert state.get("nearest_entry") == "single", state
+        action = state["action_position"]
+        action_size = state["action_size"]
+        page.mouse.click(round(action[0] + action_size[0] / 2), round(action[1] + action_size[1] / 2))
         state = wait_comp_screen(1)
         action = state["action_position"]
         action_size = state["action_size"]
