@@ -239,7 +239,11 @@ def main() -> int:
         wait_comp_screen(0)
         back = nav.competition_position()["back_position"]
         back_size = nav.competition_position()["back_size"]
+        return_started_at = time.monotonic()
         page.mouse.click(round(back[0] + back_size[0] / 2), round(back[1] + back_size[1] / 2))
+        return_deadline = time.monotonic() + 10
+        while nav.state_received_at <= return_started_at and time.monotonic() < return_deadline:
+            page.wait_for_timeout(50)
         restored_life = nav.position()
         assert restored_life.get("test_save_data", {}).get("bridge_repaired") is True, restored_life
         print("PASS live R01 replay, return to life island and preserve Q001 state", flush=True)
