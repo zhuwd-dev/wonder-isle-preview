@@ -119,7 +119,12 @@ def main() -> int:
 
         # Complete R01 on the deployed Pages site with ordinary desktop keys.
         # Read-only telemetry guides real input; it never moves the player.
-        nav.move_until_ready("a", "去竞技岛")
+        # The Q004 wood crate sits by the initial spawn and intentionally
+        # takes interaction priority over the gate. Walk around it on the
+        # normal path before approaching the gate; do not teleport the player.
+        nav.go(("y", 430), ("x", 210), ("y", 440))
+        gate_state = nav.position()
+        assert gate_state.get("ready") and gate_state.get("action") == "去竞技岛", gate_state
         page.screenshot(path="/tmp/preview-r01-entrance.png", full_page=True)
         page.keyboard.press("e")
 
