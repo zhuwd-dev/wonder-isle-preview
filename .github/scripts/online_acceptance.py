@@ -168,7 +168,6 @@ def main() -> int:
             last_position = None
             last_progress = time.monotonic()
             last_jump = 0.0
-            initial_peak = nav.competition_position().get("test_peak_jump_height", 0.0)
             key = ("d" if target > nav.competition_position()["x"] else "a") if axis == "x" else ("s" if target > nav.competition_position()["y"] else "w")
             page.keyboard.down(key)
             try:
@@ -178,8 +177,6 @@ def main() -> int:
                         return state
                     current = state[axis]
                     if abs(target - current) <= 18:
-                        if jump and state.get("test_peak_jump_height", 0.0) - initial_peak < 18:
-                            raise AssertionError(f"R01 low barrier jump did not clear: {state}")
                         return state
                     position = (state["x"], state["y"])
                     if last_position is None or abs(position[0] - last_position[0]) + abs(position[1] - last_position[1]) > 1:
@@ -196,8 +193,17 @@ def main() -> int:
             raise AssertionError(f"Timed out walking R01 {axis}={target}: {nav.competition_position()}")
 
         def race_to(x: float, y: float, *, jump: bool = False) -> dict:
+            peak_before = nav.competition_position().get("test_peak_jump_height", 0.0)
             state = race_axis("x", x, jump=jump)
-            return race_axis("y", y, jump=jump)
+            state = race_axis("y", y, jump=jump)
+            if jump:
+                landing_deadline = time.monotonic() + 3
+                while state.get("jump_active") and time.monotonic() < landing_deadline:
+                    page.wait_for_timeout(50)
+                    state = nav.competition_position()
+                if state.get("test_peak_jump_height", 0.0) - peak_before < 18:
+                    raise AssertionError(f"R01 low barrier jump did not clear: {state}")
+            return state
 
         width = state.get("world_width", 1280.0)
         offset_x = (width - 1280.0) * 0.5
