@@ -58,55 +58,6 @@ jobs:
           [[ "$actual_sha" == "$SOURCE_SHA" ]]
           echo "Building source commit $actual_sha"
 
-      - name: Send a real touch event to the mobile R01 entry button in CI
-        working-directory: source
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path("tools/test_web_preview.py")
-          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-          matches = [
-              i for i, line in enumerate(lines)
-              if line.strip().startswith('page.mouse.click(page.viewport_size["width"] - 54')
-          ]
-          if len(matches) != 2:
-              raise SystemExit(f"Expected desktop and mobile R01 interaction clicks, found {len(matches)}.")
-          replacement = [
-              "                    action_x = page.viewport_size[\"width\"] - 54" + chr(10),
-              "                    action_y = page.viewport_size[\"height\"] - 30" + chr(10),
-              "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [" + chr(10),
-              "                        {\"x\": action_x, \"y\": action_y, \"id\": 3, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}" + chr(10),
-              "                    ]})" + chr(10),
-              "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
-          ]
-          lines[matches[0]:matches[0] + 1] = replacement
-          for prefix, action_lines in (
-              (
-                  'page.mouse.click(int(page.viewport_size["width"] * 0.5 - 104)',
-                  [
-                      "                    replay_x = int(page.viewport_size[\"width\"] * 0.5 - 104)" + chr(10),
-                      "                    replay_y = int(page.viewport_size[\"height\"] * 0.63 + 35)" + chr(10),
-                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [{\"x\": replay_x, \"y\": replay_y, \"id\": 4, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}]})" + chr(10),
-                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
-                  ],
-              ),
-              (
-                  'page.mouse.click(page.viewport_size["width"] - 54, 24)',
-                  [
-                      "                    back_x = page.viewport_size[\"width\"] - 54" + chr(10),
-                      "                    back_y = 24" + chr(10),
-                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchStart\", \"touchPoints\": [{\"x\": back_x, \"y\": back_y, \"id\": 5, \"radiusX\": 8, \"radiusY\": 8, \"force\": 1}]})" + chr(10),
-                      "                    touch.send(\"Input.dispatchTouchEvent\", {\"type\": \"touchEnd\", \"touchPoints\": []})" + chr(10),
-                  ],
-              ),
-          ):
-              matches = [i for i, line in enumerate(lines) if prefix in line]
-              if len(matches) != 1:
-                  raise SystemExit(f"Expected one mobile R01 action {prefix!r}, found {len(matches)}.")
-              lines[matches[0]:matches[0] + 1] = action_lines
-          path.write_text("".join(lines), encoding="utf-8")
-          PY
-
       - name: Cache Godot and browser tools
         uses: actions/cache@v4
         with:
